@@ -99,6 +99,7 @@ target/
 
 # pyenv
 .python-version
+.venv
 
 # dotenv
 .env

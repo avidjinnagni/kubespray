@@ -1,0 +1,95 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+SUPPORTED_OS = {
+  "ubuntu2204"          => {box: "bento/ubuntu-22.04",         user: "vagrant", box_version: "202206.13.0"},
+}
+
+
+$vm_gui ||= false
+$os ||= "ubuntu2204"
+$download_run_once ||= "True"
+$download_force_cache ||= "False"
+
+$kube_proxy_nodes ||= 2
+$kube_master_nodes ||= 2
+$kube_worker_nodes ||= 2
+
+# throw error if os is not supported
+if ! SUPPORTED_OS.key?($os)
+  puts "Unsupported OS: #{$os}"
+  puts "Supported OS are: #{SUPPORTED_OS.keys.join(', ')}"
+  exit 1
+end
+
+
+Vagrant.configure("2") do |config|
+
+  config.vm.box = SUPPORTED_OS[$os][:box]
+  config.vm.box_version = SUPPORTED_OS[$os][:box_version]
+  config.vm.box_check_update = false
+
+  (1..$kube_master_nodes).each do |machine_id|
+    config.vm.define "k8sp-master-#{machine_id}" do |machine|
+      config.vm.provider "virtualbox" do |vb|
+        vb.cpus = 4
+        vb.memory = 12500
+        vb.gui = $vm_gui 
+        vb.customize ["modifyvm", :id, "--vram", "8"] # ubuntu defaults to 256 MB which is a waste of precious RAM
+        vb.customize ["modifyvm", :id, "--audio", "none"]
+      end
+      machine.vm.hostname = "k8sp-master-#{machine_id}"
+      machine.vm.network "private_network", ip: "192.168.56.20#{+machine_id}"
+      machine.vm.network "public_network", bridge: "wlp0s20f3", ip: "172.16.10.2#{+machine_id}"
+      machine.vm.network "forwarded_port", guest: 22, host: "24#{$kube_proxy_nodes+machine_id}"
+      machine.vm.network "forwarded_port", guest: 6443, host: "65#{$kube_proxy_nodes+$kube_master_nodes+machine_id}"
+      machine.vm.network "forwarded_port", guest: 9345, host: "93#{$kube_proxy_nodes+$kube_master_nodes+machine_id}"
+
+      machine.vm.provision "file", source: "~/.ssh/id_ed25519.pub", destination: "~/.ssh/me.pub"
+      machine.vm.provision "shell", inline: "cat ~vagrant/.ssh/me.pub >> ~vagrant/.ssh/authorized_keys"
+
+      machine.vm.provision "shell", inline: "swapoff -a"
+
+      # ubuntu2004 and ubuntu2204 have IPv6 explicitly disabled. This undoes that.
+      if ["ubuntu2004", "ubuntu2204"].include? $os
+        machine.vm.provision "shell", inline: "rm -f /etc/modprobe.d/local.conf"
+        machine.vm.provision "shell", inline: "sed -i '/net.ipv6.conf.all.disable_ipv6/d' /etc/sysctl.d/99-sysctl.conf /etc/sysctl.conf"
+      end
+
+      machine.vm.provision "prepare_node", :type => "shell", :path => "prepare_node.sh"
+      machine.vm.provision "install-guest-additions", :type => "shell", :path => "./ubuntu/install-guest-additions.sh"     
+    end
+  end
+
+  (1..$kube_worker_nodes).each do |machine_id|
+    config.vm.define "k8sp-worker-#{machine_id}" do |machine|
+      config.vm.provider "virtualbox" do |vb|
+        vb.cpus = 4
+        vb.memory = 12500 
+        vb.gui = $vm_gui 
+        vb.customize ["modifyvm", :id, "--vram", "8"] # ubuntu defaults to 256 MB which is a waste of precious RAM
+        vb.customize ["modifyvm", :id, "--audio", "none"]
+      end
+      machine.vm.hostname = "k8sp-worker-#{machine_id}"
+      machine.vm.network "private_network", ip: "192.168.56.21#{+machine_id}"
+      machine.vm.network "public_network", bridge: "wlp0s20f3", ip: "172.16.10.3#{+machine_id}"
+      machine.vm.network "forwarded_port", guest: 22, host: "24#{$kube_proxy_nodes+2*$kube_master_nodes + machine_id}"
+      machine.vm.network "forwarded_port", guest: 6443, host: "65#{$kube_proxy_nodes+3*$kube_master_nodes + machine_id}"
+
+      machine.vm.provision "file", source: "~/.ssh/id_ed25519.pub", destination: "~/.ssh/me.pub"
+      machine.vm.provision "shell", inline: "cat ~vagrant/.ssh/me.pub >> ~vagrant/.ssh/authorized_keys"
+
+      machine.vm.provision "shell", inline: "swapoff -a"
+
+      # ubuntu2004 and ubuntu2204 have IPv6 explicitly disabled. This undoes that.
+      if ["ubuntu2004", "ubuntu2204"].include? $os
+        machine.vm.provision "shell", inline: "rm -f /etc/modprobe.d/local.conf"
+        machine.vm.provision "shell", inline: "sed -i '/net.ipv6.conf.all.disable_ipv6/d' /etc/sysctl.d/99-sysctl.conf /etc/sysctl.conf"
+      end
+
+      machine.vm.provision "prepare_node", :type => "shell", :path => "prepare_node.sh" 
+      machine.vm.provision "install-guest-additions", :type => "shell", :path => "./ubuntu/install-guest-additions.sh"    
+
+    end
+  end
+end
