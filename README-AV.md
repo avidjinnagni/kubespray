@@ -24,7 +24,7 @@ ansible-playbook -i inventory/cluster/hosts.ini --become --user=root --become-us
 source .venv/bin/deactivate
 
 
-ansible-playbook -i inventory/cluster/hosts.ini --become --user=root --become-user=root -b upgrade-cluster.yml -vv --private-key=~/.ssh/id_ed25519.pub -e kube_version=v1.31.0 
+ansible-playbook -i inventory/cluster/hosts.ini --become --user=root --become-user=root -b upgrade-cluster.yml -vv --private-key=~/.ssh/id_ed25519.pub -e kube_version=v1.33.5 
 
 # Remove node 
 ansible-playbook -i inventory/cluster/hosts.ini  remove-node.yml -b --become-user=root -e "node=master-3" -vv --private-key=~/.ssh/id_ed25519.pub
@@ -41,3 +41,6 @@ To solve it:
 cd ./library
 rm -f kube.py
 ln -s ../plugins/modules/kube.py .
+
+
+-e download_cache_dir="/tmp/kubespray_cache"
