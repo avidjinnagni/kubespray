@@ -23,24 +23,21 @@ ansible-playbook -i inventory/cluster/hosts.ini --become --user=root --become-us
 #deactivate the virtual environment
 source .venv/bin/deactivate
 
-
+# Upgrade version
 ansible-playbook -i inventory/cluster/hosts.ini --become --user=root --become-user=root -b upgrade-cluster.yml -vv --private-key=~/.ssh/id_ed25519.pub -e kube_version=v1.33.5 
 
 # Remove node 
 ansible-playbook -i inventory/cluster/hosts.ini  remove-node.yml -b --become-user=root -e "node=master-3" -vv --private-key=~/.ssh/id_ed25519.pub
 
+# Adding node
+ansible-playbook -i inventory/cluster/hosts.ini --become --user=root --become-user=root -b scale.yml -vv --private-key=~/.ssh/id_ed25519.pub -e kube_version=v1.33.5 
+
+
+# Sync Kubespray github fork
+https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/syncing-a-fork
 
 # TROUBLESHOOTING
+## Error when installing kubectl version not available in checksums
+We realize that sometime we have errors regarding downling or caching options. This is usually caused by a missing of checksum in roles/kubespray-defaults/vars/main/checksums
+Ex. kubespray/roles/download/tasks/download_file.yml': line 16, column 5
 
-Error: Kubespray gives fatal "module (kube) is missing interpreter line" error
-
-This is caused by the kube.py located in the library folder.
-
-To solve it:
-
-cd ./library
-rm -f kube.py
-ln -s ../plugins/modules/kube.py .
-
-
--e download_cache_dir="/tmp/kubespray_cache"

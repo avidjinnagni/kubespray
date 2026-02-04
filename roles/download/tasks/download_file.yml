@@ -15,7 +15,7 @@
 
   - name: Download_file | Set pathname of cached file
     set_fact:
-      file_path_cached: "{{ download_cache_dir }}/{{ download.dest | basename }}"
+      file_path_cached: "{{ download_cache_dir | default('/tmp/kubespray_cache') }}/{{ download.dest | default('/tmp/releases/') }}"
     tags:
     - facts
 
